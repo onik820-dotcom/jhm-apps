@@ -1,0 +1,309 @@
+@import 'tailwindcss';
+
+/* ===========================================================================
+   Design system — minimalist, professional, glassmorphic.
+
+   Panels hover above a soft gradient so the blur has something to work with.
+   Colour is semantic only: green within tolerance, amber watch, red past
+   threshold. Nothing is coloured for decoration.
+   =========================================================================== */
+
+@theme {
+  /* Supplied by next/font in app/layout.tsx. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-bengali: var(--font-noto-bengali), var(--font-inter), ui-sans-serif, sans-serif;
+
+  --color-accent: #1e40af;
+  --color-accent-soft: #dbeafe;
+
+  --color-ok: #15803d;
+  --color-watch: #b45309;
+  --color-breach: #b91c1c;
+
+  --radius-glass: 16px;
+}
+
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.06);
+  --glass-shadow-lift: 0 16px 48px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.08);
+
+  --page-from: #f8fafc; /* slate-50 */
+  --page-to: #eff6ff; /* blue-50 */
+
+  --text-strong: #0f172a;
+  --text-muted: #475569;
+  /* Was #94a3b8, which measured 2.49:1 against the composited glass — below
+     WCAG AA for any size. It carries every hint, table heading and secondary
+     label in the app, and this app is read in sunlight on a forecourt, so
+     "decorative grey" was the wrong call. #64748b is 4.63:1. */
+  --text-faint: #64748b;
+  --hairline: rgba(15, 23, 42, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --glass-bg: rgba(15, 23, 42, 0.72);
+    --glass-border: rgba(148, 163, 184, 0.22);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --glass-shadow-lift: 0 16px 48px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+
+    --page-from: #0b1220;
+    --page-to: #0f172a;
+
+    --text-strong: #f1f5f9;
+    --text-muted: #cbd5e1;
+    --text-faint: #94a3b8; /* was #64748b — 3.69:1 on dark glass */
+    --hairline: rgba(148, 163, 184, 0.16);
+
+    /* The state colours are picked for a white background and are far too
+       dark against a dark one. --color-breach measured 2.71:1, which is the
+       variance and alert colour: the one figure on the page somebody has to
+       be able to read. These are the same hues, lifted until they pass. */
+    --color-ok: #4ade80;     /* 10.08:1, was #15803d at 3.50:1 */
+    --color-watch: #fbbf24;  /* 10.52:1, was #b45309 at 3.50:1 */
+    --color-breach: #f87171; /* 6.35:1,  was #b91c1c at 2.71:1 */
+
+    --color-accent-soft: rgba(30, 64, 175, 0.24);
+  }
+}
+
+:root[data-theme='dark'] {
+  --glass-bg: rgba(15, 23, 42, 0.72);
+  --glass-border: rgba(148, 163, 184, 0.22);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --glass-shadow-lift: 0 16px 48px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --page-from: #0b1220;
+  --page-to: #0f172a;
+  --text-strong: #f1f5f9;
+  --text-muted: #cbd5e1;
+  --text-faint: #94a3b8;
+  --hairline: rgba(148, 163, 184, 0.16);
+  --color-ok: #4ade80;
+  --color-watch: #fbbf24;
+  --color-breach: #f87171;
+  --color-accent-soft: rgba(30, 64, 175, 0.24);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: linear-gradient(160deg, var(--page-from) 0%, var(--page-to) 100%);
+  background-attachment: fixed;
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Bangla renders in Noto Sans Bengali, Latin and numerals in Inter. */
+:lang(bn),
+[lang='bn'] {
+  font-family: var(--font-bengali);
+}
+
+/* Every number in a column lines up. */
+.tabular,
+table td,
+table th {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Glass surfaces
+   -------------------------------------------------------------------------- */
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+.glass-lift {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.glass-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-lift);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-lift,
+  .glass-lift:hover {
+    transition: none;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Semantic states
+   -------------------------------------------------------------------------- */
+
+.state-ok {
+  color: var(--color-ok);
+}
+.state-watch {
+  color: var(--color-watch);
+}
+.state-breach {
+  color: var(--color-breach);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--hairline);
+}
+
+/* --------------------------------------------------------------------------
+   Forecourt ergonomics: a dispenser uses this one-handed, in sunlight.
+   -------------------------------------------------------------------------- */
+
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.forecourt-button {
+  min-height: 132px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Skeletons, never spinners. */
+.skeleton {
+  background: linear-gradient(90deg, var(--hairline) 25%, transparent 37%, var(--hairline) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-sweep {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* A phone never scrolls sideways. */
+@media (max-width: 640px) {
+  body {
+    overflow-x: hidden;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Printing
+ 
+   The PDF export is the browser's own print-to-PDF rather than a server-side
+   renderer, and that is a correctness decision rather than a shortcut. Bengali
+   needs complex text shaping — conjuncts, reordered vowel signs, ligatures —
+   and JavaScript PDF libraries generally do not shape text, so they lay out
+   Bangla glyph by glyph and produce something a reader would call broken. The
+   browser shapes it correctly because it is the same engine that renders the
+   screen, so printing from it is the one route that gets Bangla right.
+ 
+   Everything below turns a live page into an A4 sheet: the shell, navigation
+   and controls come off, the glass goes flat, and the sheet is black on white
+   because that is what a filing cabinet expects.
+ --------------------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Anything not part of the document itself. */
+  .no-print,
+  header,
+  nav,
+  button {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Glass is a screen affordance; on paper it is just a box. */
+  .glass {
+    background: #fff !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  .print-sheet {
+    font-size: 9.5pt;
+    line-height: 1.35;
+  }
+
+  .print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-sheet th,
+  .print-sheet td {
+    border: 1px solid #000;
+    padding: 2pt 3pt;
+  }
+
+  .print-sheet thead {
+    display: table-header-group;
+  }
+
+  /* A section should not be split across a page break if it can be helped,
+     and a signature block never should — a sheet whose signatures sit alone
+     on a second page is not the form the business signs. */
+  .print-block {
+    break-inside: avoid;
+  }
+
+  .print-break-before {
+    break-before: page;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+}
+
+.print-only {
+  display: none;
+}

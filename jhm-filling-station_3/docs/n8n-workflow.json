@@ -1,0 +1,185 @@
+{
+  "name": "JHM Filling Station — Sheets mirror",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jhm-events",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-events",
+      "name": "Event from JHM",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-360, 0],
+      "webhookId": "jhm-events"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2 },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.headers['x-jhm-secret'] }}",
+              "rightValue": "={{ $env.JHM_INBOUND_SECRET }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-secret",
+      "name": "Shared secret matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-140, 0],
+      "notes": "The app signs every event with X-JHM-Secret. An unsigned call is refused before anything is written to the workbook."
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "version": 2 }, "conditions": [ { "leftValue": "={{ $json.body.event }}", "rightValue": "shift.closed", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "Pump Sheet" },
+            { "conditions": { "options": { "version": 2 }, "conditions": [ { "leftValue": "={{ $json.body.event }}", "rightValue": "refill.received", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "Purchases" },
+            { "conditions": { "options": { "version": 2 }, "conditions": [ { "leftValue": "={{ $json.body.event }}", "rightValue": "credit_sale.created", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "Due Customer Ledger" },
+            { "conditions": { "options": { "version": 2 }, "conditions": [ { "leftValue": "={{ $json.body.event }}", "rightValue": "payment.received", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "Due Customer Ledger" },
+            { "conditions": { "options": { "version": 2 }, "conditions": [ { "leftValue": "={{ $json.body.event }}", "rightValue": "expense.created", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "Espenditure" },
+            { "conditions": { "options": { "version": 2 }, "conditions": [ { "leftValue": "={{ $json.body.event }}", "rightValue": "variance.exceeded", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "renameOutput": true, "outputKey": "Alerts" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "route-event",
+      "name": "Which tab?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [120, -100],
+      "notes": "Tab names match the workbooks the station already keeps: Pump Sheet, Can Lub, Due Customer Ledger, Espenditure."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten the event into one row per tab, and carry the idempotency key\n// into a column so a re-delivery can be spotted in the sheet itself.\nconst out = [];\nfor (const item of $input.all()) {\n  const body = item.json.body ?? item.json;\n  const d = body.data ?? {};\n  out.push({\n    json: {\n      idempotency_key: body.idempotency_key,\n      event: body.event,\n      occurred_at: body.occurred_at,\n      attempt: body.attempt ?? 1,\n      payload: JSON.stringify(d),\n      ...d,\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "flatten",
+      "name": "Flatten to a row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, -100]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "={{ $env.JHM_SHEET_ID }}", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "={{ $json.event === 'shift.closed' ? 'Pump Sheet' : $json.event === 'expense.created' ? 'Espenditure' : $json.event === 'refill.received' ? 'Purchases' : $json.event === 'variance.exceeded' ? 'Alerts' : 'Due Customer Ledger' }}", "mode": "name" },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": ["idempotency_key"],
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "append-sheet",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, -100],
+      "notes": "appendOrUpdate matched on idempotency_key, so a retried event updates its own row instead of writing a duplicate. The app already dedupes, but the mirror should not depend on that."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, event: $json.event, idempotency_key: $json.idempotency_key }) }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "200 back to JHM",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [840, -100],
+      "notes": "The app marks the queue row 'sent' only on a 2xx. Anything else, and it retries with backoff and eventually raises an alert."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 401,
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'bad secret' }) }}",
+        "options": {}
+      },
+      "id": "respond-401",
+      "name": "401 back to JHM",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [120, 140]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jhm-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-chat",
+      "name": "Chat from JHM",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-360, 340],
+      "webhookId": "jhm-chat",
+      "notes": "Only needed if chat is routed through n8n. The app answers in its own /api/chat route by default, so that reads run under the asker's RLS session."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.JHM_BASE_URL }}/api/n8n/chat",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.JHM_INBOUND_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_id: $json.body.session_id, user_id: $json.body.user_id, content: $json.reply, content_lang: $json.body.lang ?? 'bn', n8n_request_id: $execution.id }) }}",
+        "options": {}
+      },
+      "id": "reply-to-app",
+      "name": "Reply into the app",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 340],
+      "notes": "n8n_request_id is the execution id, so a replayed execution is deduped rather than posting the same reply twice."
+    }
+  ],
+  "connections": {
+    "Event from JHM": { "main": [[{ "node": "Shared secret matches?", "type": "main", "index": 0 }]] },
+    "Shared secret matches?": {
+      "main": [
+        [{ "node": "Which tab?", "type": "main", "index": 0 }],
+        [{ "node": "401 back to JHM", "type": "main", "index": 0 }]
+      ]
+    },
+    "Which tab?": {
+      "main": [
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }],
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }],
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }],
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }],
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }],
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }],
+        [{ "node": "Flatten to a row", "type": "main", "index": 0 }]
+      ]
+    },
+    "Flatten to a row": { "main": [[{ "node": "Append to Google Sheets", "type": "main", "index": 0 }]] },
+    "Append to Google Sheets": { "main": [[{ "node": "200 back to JHM", "type": "main", "index": 0 }]] },
+    "Chat from JHM": { "main": [[{ "node": "Reply into the app", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": {
+    "instanceId": "jhm-filling-station",
+    "description": "Mirrors committed JHM events into the station's existing Google Sheets workbooks. The app is the system of record; this is a copy. A failure here never rolls back a local write — the app retries with backoff and raises an alert if it gives up."
+  }
+}
